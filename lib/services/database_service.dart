@@ -302,6 +302,18 @@ class DatabaseService {
     }
   }
 
+  Future<bool> updatePlayerTotalLost(String playerId, int newTotal) async {
+    try {
+      await _db.collection('players').doc(playerId).update({
+        'totalLost': newTotal,
+      });
+      return true;
+    } catch (e) {
+      debugPrint('!!! UPDATE PLAYER TOTAL LOST ERROR: $e');
+      return false;
+    }
+  }
+
   Future<bool> deletePlayer(String id, String phone) async {
     try {
       // 1. Delete from players

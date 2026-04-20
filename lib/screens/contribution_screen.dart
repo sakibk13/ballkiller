@@ -322,14 +322,23 @@ class _ContributionScreenState extends State<ContributionScreen> with SingleTick
         actions: [
           IconButton(
             icon: const Icon(Icons.picture_as_pdf_outlined, color: Colors.orange),
-            onPressed: () {
-               if (_tabController.index == 0) {
-                 final summaryData = _getUnifiedSummary(provider, fineProvider);
-                 ExportService.exportFinancialSummaryReport(monthYear: _selectedMonthYear, data: summaryData);
-               } else {
-                 final detailedData = _getUnifiedDetailedList(provider, fineProvider);
-                 ExportService.exportFinancialDetailedReport(monthYear: _selectedMonthYear, contributions: detailedData);
-               }
+            onPressed: () async {
+              try {
+                if (_tabController.index == 0) {
+                  final summaryData = _getUnifiedSummary(provider, fineProvider);
+                  await ExportService.exportFinancialSummaryReport(monthYear: _selectedMonthYear, data: summaryData);
+                } else {
+                  final detailedData = _getUnifiedDetailedList(provider, fineProvider);
+                  await ExportService.exportFinancialDetailedReport(monthYear: _selectedMonthYear, contributions: detailedData);
+                }
+                if (mounted) {
+                  StatusDialog.show(context, title: "SUCCESS", message: "Financial PDF Generated!", isSuccess: true);
+                }
+              } catch (e) {
+                if (mounted) {
+                  StatusDialog.show(context, title: "ERROR", message: "Failed: $e", isSuccess: false);
+                }
+              }
             },
           ),
           const SizedBox(width: 10),

@@ -73,7 +73,7 @@ class BallProvider with ChangeNotifier {
 
   List<Map<String, dynamic>> getPlayersWithTotals({String? monthYear}) {
     if (monthYear == null || monthYear == 'Overall') {
-      return _players.where((p) => p.totalLost > 0).map((p) => {
+      return _players.map((p) => {
         'id': p.id,
         'name': p.name,
         'phone': p.phone,
@@ -97,7 +97,7 @@ class BallProvider with ChangeNotifier {
       'photoUrl': p.photoUrl,
       'password': p.password,
       'total': max(0, monthlyTotals[p.id!] ?? 0),
-    }).where((p) => (p['total'] as int) > 0).toList()..sort((a, b) {
+    }).toList()..sort((a, b) {
       int cmp = (b['total'] as num).compareTo(a['total'] as num);
       if (cmp != 0) return cmp;
       return (a['name'] as String).toLowerCase().compareTo((b['name'] as String).toLowerCase());
@@ -160,6 +160,23 @@ class BallProvider with ChangeNotifier {
       await fetchAllRecords();
     } catch (e) {
       debugPrint('Add Player Error: $e');
+    }
+    _isLoading = false;
+    notifyListeners();
+    return success;
+  }
+
+  Future<bool> overridePlayerTotalLost(String playerId, int newTotal) async {
+    _isLoading = true;
+    notifyListeners();
+    bool success = false;
+    try {
+      success = await DatabaseService().updatePlayerTotalLost(playerId, newTotal);
+      if (success) {
+        await fetchPlayers();
+      }
+    } catch (e) {
+      debugPrint('Override Player Total Lost Error: $e');
     }
     _isLoading = false;
     notifyListeners();

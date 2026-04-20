@@ -8,6 +8,7 @@ import '../providers/fund_provider.dart';
 import '../providers/auth_provider.dart';
 import '../models/fund.dart';
 import '../utils/export_service.dart';
+import '../utils/status_dialog.dart';
 
 class FundScreen extends StatefulWidget {
   const FundScreen({super.key});
@@ -40,12 +41,21 @@ class _FundScreenState extends State<FundScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.picture_as_pdf_outlined, color: Colors.orange),
-            onPressed: () {
-              ExportService.exportFundReport(
-                funds: fundProvider.funds,
-                grandTotal: fundProvider.grandTotal,
-                players: ballProvider.players,
-              );
+            onPressed: () async {
+              try {
+                await ExportService.exportFundReport(
+                  funds: fundProvider.funds,
+                  grandTotal: fundProvider.grandTotal,
+                  players: ballProvider.players,
+                );
+                if (mounted) {
+                  StatusDialog.show(context, title: "SUCCESS", message: "Fund Report Generated!", isSuccess: true);
+                }
+              } catch (e) {
+                if (mounted) {
+                  StatusDialog.show(context, title: "ERROR", message: "Failed: $e", isSuccess: false);
+                }
+              }
             },
           ),
           const SizedBox(width: 10),

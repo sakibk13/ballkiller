@@ -10,6 +10,7 @@ import '../providers/auth_provider.dart';
 import '../models/fine_payment.dart';
 import '../models/contribution.dart';
 import '../utils/export_service.dart';
+import '../utils/status_dialog.dart';
 
 class FineScreen extends StatefulWidget {
   const FineScreen({super.key});
@@ -103,11 +104,20 @@ class _FineScreenState extends State<FineScreen> {
           actions: [
             IconButton(
               icon: const Icon(Icons.picture_as_pdf_outlined, color: Colors.orange),
-              onPressed: () {
-                ExportService.exportFineReport(
-                  monthYear: _selectedMonthYear,
-                  sortedPlayers: sortedPlayers,
-                );
+              onPressed: () async {
+                try {
+                  await ExportService.exportFineReport(
+                    monthYear: _selectedMonthYear,
+                    sortedPlayers: sortedPlayers,
+                  );
+                  if (mounted) {
+                    StatusDialog.show(context, title: "SUCCESS", message: "Fine Report Generated!", isSuccess: true);
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    StatusDialog.show(context, title: "ERROR", message: "Failed: $e", isSuccess: false);
+                  }
+                }
               },
             ),
             const SizedBox(width: 10),

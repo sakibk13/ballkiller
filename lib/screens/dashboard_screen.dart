@@ -105,7 +105,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
 
       final leaderboard = ballProv.getMonthlyLeaderboard('Overall');
 
-      final success = await CloudSyncService.syncAllData(
+      final result = await CloudSyncService.syncAllData(
         leaderboard: leaderboard,
         playerStatus: enriched,
         funds: fundProv.funds,
@@ -114,13 +114,31 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
         stock: invProv.inventoryList,
       );
 
+      final bool success = result['success'] ?? false;
+      final String message = result['message'] ?? 'Unknown Error';
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(success ? "Cloud Sync Successful!" : "Sync Failed. Try again."),
-            backgroundColor: success ? Colors.green : Colors.red,
-          )
-        );
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(message), backgroundColor: Colors.green)
+          );
+        } else {
+          // Show a full dialog for errors so the user can read the exact message
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: const Color(0xFF020C3B),
+              title: Text("SYNC ERROR", style: GoogleFonts.bebasNeue(color: Colors.redAccent)),
+              content: Text(message, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text("CLOSE", style: TextStyle(color: Colors.orange)),
+                )
+              ],
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {

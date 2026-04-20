@@ -101,8 +101,11 @@ class _ReportCenterScreenState extends State<ReportCenterScreen> {
       await ExportService.downloadMultiplePdfs([mergedBytes], [filename]);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Bundle Generated Successfully!"))
+        StatusDialog.show(
+          context, 
+          title: "SUCCESS", 
+          message: "Report Bundle Generated & Shared!", 
+          isSuccess: true
         );
       }
     } catch (e) {

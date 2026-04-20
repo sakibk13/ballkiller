@@ -7,9 +7,10 @@ import '../models/fund.dart';
 import '../models/inventory.dart';
 
 class CloudSyncService {
-  static const String _url = 'https://script.google.com/macros/s/AKfycbxXbr2M7b1QtGtfqWEBbT3w_yr9Gs5lT6bmgzHc6IvVlw6WDiy8j1ScneYyo2zS0u7G/exec';
+  // Base URL
+  static const String _url = 'https://script.google.com/macros/s/AKfycbz4IZlDJVMv61c5KQms5us8Ukwgb4u7NFoi35IiiSWqNUEJP0_fQllySYo1mfxRfN8S/exec';
 
-  static Future<bool> syncAllData({
+  static Future<Map<String, dynamic>> syncAllData({
     required List<Map<String, dynamic>> leaderboard,
     required List<Map<String, dynamic>> playerStatus,
     required List<Fund> funds,
@@ -82,12 +83,13 @@ class CloudSyncService {
         body: jsonEncode(data),
       );
 
-      print('Sync Response Status: ${response.statusCode}');
-      // Success is 200, but Apps Script sometimes redirects (302)
-      return response.statusCode == 200 || response.statusCode == 302;
+      if (response.body.contains("Sync Successful") || response.statusCode == 200 || response.statusCode == 302) {
+        return {'success': true, 'message': 'Sync Successful'};
+      } else {
+        return {'success': false, 'message': response.body.isEmpty ? 'Status ${response.statusCode}' : response.body};
+      }
     } catch (e) {
-      print('Cloud Sync Error: $e');
-      return false;
+      return {'success': false, 'message': 'Network Error: $e'};
     }
   }
 }

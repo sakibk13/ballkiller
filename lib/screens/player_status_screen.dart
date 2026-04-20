@@ -6,8 +6,10 @@ import 'package:intl/intl.dart';
 import '../providers/ball_provider.dart';
 import '../providers/fine_provider.dart';
 import '../providers/contribution_provider.dart';
+import '../providers/auth_provider.dart';
 import '../models/fine_payment.dart';
 import '../utils/export_service.dart';
+import '../utils/status_dialog.dart';
 
 class PlayerStatusScreen extends StatefulWidget {
   const PlayerStatusScreen({super.key});
@@ -32,6 +34,7 @@ class _PlayerStatusScreenState extends State<PlayerStatusScreen> {
     final ballProv = Provider.of<BallProvider>(context);
     final fineProv = Provider.of<FineProvider>(context);
     final contProv = Provider.of<ContributionProvider>(context);
+    final isAdmin = Provider.of<AuthProvider>(context, listen: false).isAdmin;
 
     if (ballProv.isLoading) {
       return const Scaffold(
@@ -78,7 +81,18 @@ class _PlayerStatusScreenState extends State<PlayerStatusScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.picture_as_pdf_outlined, color: Colors.orange),
-            onPressed: () => ExportService.exportPlayerStatusReport(players: enriched),
+            onPressed: () async {
+              try {
+                await ExportService.exportPlayerStatusReport(players: enriched);
+                if (mounted) {
+                  StatusDialog.show(context, title: "SUCCESS", message: "Master Status PDF Generated!", isSuccess: true);
+                }
+              } catch (e) {
+                if (mounted) {
+                  StatusDialog.show(context, title: "ERROR", message: "Failed: $e", isSuccess: false);
+                }
+              }
+            },
           ),
           const SizedBox(width: 10),
         ],
@@ -92,10 +106,7 @@ class _PlayerStatusScreenState extends State<PlayerStatusScreen> {
               itemCount: enriched.length,
               itemBuilder: (context, index) {
                 final p = enriched[index];
-                return InkWell(
-                  onTap: () => _showPlayerDetails(p),
-                  child: _buildPlayerRow(p, index),
-                );
+                return _buildPlayerRow(p, index, isAdmin);
               },
             ),
           ),
@@ -198,6 +209,54 @@ class _PlayerStatusScreenState extends State<PlayerStatusScreen> {
     );
   }
 
+  void _showEditLostDialog(Map<String, dynamic> player) {
+    final controller = TextEditingController(text: player['total'].toString());
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF020C3B),
+        title: Text('EDIT BALL LOSS', style: GoogleFonts.bebasNeue(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Player: ${player['name']}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+            const SizedBox(height: 15),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Total Balls Lost',
+                labelStyle: const TextStyle(color: Colors.white38),
+                filled: true,
+                fillColor: Colors.white.withOpacity(0.05),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCEL')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            onPressed: () async {
+              final newValue = int.tryParse(controller.text);
+              if (newValue != null) {
+                final success = await Provider.of<BallProvider>(context, listen: false).overridePlayerTotalLost(player['id'], newValue);
+                if (success && mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Updated successfully')));
+                }
+              }
+            },
+            child: const Text('UPDATE', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSmallStat(String label, String val, Color color) {
     return Column(
       children: [
@@ -216,10 +275,10 @@ class _PlayerStatusScreenState extends State<PlayerStatusScreen> {
       ),
       child: Row(
         children: [
-          _tableHeader('RK', 30), // Reduced width
-          _tableHeader('PIC', 35), // Reduced width
+          _tableHeader('RK', 30),
+          _tableHeader('PIC', 35),
           Expanded(child: _tableHeader('NAME', 0)),
-          _tableHeader('LOST', 40),
+          _tableHeader('LOST', 45),
           _tableHeader('TOTAL', 50),
           _tableHeader('GIVEN', 50),
           _tableHeader('DUE', 50),
@@ -240,7 +299,13 @@ class _PlayerStatusScreenState extends State<PlayerStatusScreen> {
     );
   }
 
-  Widget _buildPlayerRow(Map<String, dynamic> p, int index) {
+  Widget _buildPlayerRow(Map<String, dynamic> p, int index, bool isAdmin) {
+    String displayName = p['name'];
+    if (displayName.contains(' ')) {
+      final parts = displayName.split(' ');
+      displayName = '${parts[0]}\n${parts.sublist(1).join(' ')}';
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
       decoration: BoxDecoration(
@@ -252,14 +317,35 @@ class _PlayerStatusScreenState extends State<PlayerStatusScreen> {
           SizedBox(width: 30, child: Text('${index + 1}', textAlign: TextAlign.center, style: GoogleFonts.bebasNeue(color: Colors.white24))),
           SizedBox(width: 35, child: Center(
             child: CircleAvatar(
-              radius: 12, // Slightly smaller
+              radius: 12,
               backgroundColor: Colors.white10,
               backgroundImage: p['photoUrl'] != null && p['photoUrl'] != '' ? MemoryImage(base64Decode(p['photoUrl'])) : null,
               child: p['photoUrl'] == '' ? Text(p['name'][0], style: const TextStyle(fontSize: 8)) : null,
             ),
           )),
-          Expanded(child: Text(p['name'], style: GoogleFonts.poppins(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600), maxLines: 2, overflow: TextOverflow.ellipsis)),
-          SizedBox(width: 40, child: Text('${p['total']}', textAlign: TextAlign.center, style: GoogleFonts.bebasNeue(color: Colors.white70, fontSize: 14))),
+          Expanded(
+            child: InkWell(
+              onTap: () => _showPlayerDetails(p),
+              child: Text(displayName, style: GoogleFonts.poppins(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600, height: 1.1)),
+            ),
+          ),
+          SizedBox(
+            width: 45, 
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('${p['total']}', textAlign: TextAlign.center, style: GoogleFonts.bebasNeue(color: Colors.white70, fontSize: 14)),
+                if (isAdmin)
+                  GestureDetector(
+                    onTap: () => _showEditLostDialog(p),
+                    child: const Padding(
+                      padding: EdgeInsets.only(left: 4),
+                      child: Icon(Icons.edit, color: Colors.orange, size: 12),
+                    ),
+                  ),
+              ],
+            )
+          ),
           SizedBox(width: 50, child: Text('${(p['totalFine'] as double).toInt()}', textAlign: TextAlign.right, style: GoogleFonts.bebasNeue(color: Colors.yellowAccent, fontSize: 14))),
           SizedBox(width: 50, child: Text('${(p['paid'] as double).toInt()}', textAlign: TextAlign.right, style: GoogleFonts.bebasNeue(color: Colors.greenAccent, fontSize: 14))),
           SizedBox(width: 50, child: Text('${(p['due'] as double).toInt()}', textAlign: TextAlign.right, style: GoogleFonts.bebasNeue(color: (p['due'] as double) > 0 ? Colors.redAccent : Colors.greenAccent, fontSize: 14))),

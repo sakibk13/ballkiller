@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/ball_provider.dart';
 import '../utils/export_service.dart';
+import '../utils/status_dialog.dart';
 
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
@@ -58,18 +59,27 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.picture_as_pdf_outlined, color: Colors.orange),
-            onPressed: () {
-              final ballProvider = Provider.of<BallProvider>(context, listen: false);
-              final displayData = ballProvider.getMonthlyLeaderboard(_selectedMonthYear);
-              if (displayData.isNotEmpty) {
-                ExportService.exportLeaderboard(
-                  monthYear: _selectedMonthYear,
-                  players: displayData,
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('No data to export for this month')),
-                );
+            onPressed: () async {
+              try {
+                final ballProvider = Provider.of<BallProvider>(context, listen: false);
+                final displayData = ballProvider.getMonthlyLeaderboard(_selectedMonthYear);
+                if (displayData.isNotEmpty) {
+                  await ExportService.exportLeaderboard(
+                    monthYear: _selectedMonthYear,
+                    players: displayData,
+                  );
+                  if (mounted) {
+                    StatusDialog.show(context, title: "SUCCESS", message: "Leaderboard PDF Generated!", isSuccess: true);
+                  }
+                } else {
+                  if (mounted) {
+                    StatusDialog.show(context, title: "INFO", message: "No data to export for this month", isSuccess: false);
+                  }
+                }
+              } catch (e) {
+                if (mounted) {
+                  StatusDialog.show(context, title: "ERROR", message: "Failed: $e", isSuccess: false);
+                }
               }
             },
           ),
