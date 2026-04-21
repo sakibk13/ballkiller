@@ -7,6 +7,7 @@ import '../models/contribution.dart';
 import '../models/inventory.dart';
 import '../models/fine_payment.dart';
 import '../models/fund.dart';
+import '../models/audit_log.dart';
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
@@ -399,12 +400,79 @@ class DatabaseService {
 
   Future<void> deleteRecord(String recordId, String playerId, int lostCount) async {
     try {
-      await _db.collection('records').doc(recordId).delete();
       await _db.collection('players').doc(playerId).update({
         'totalLost': FieldValue.increment(-lostCount)
       });
     } catch (e) {
       debugPrint('!!! DELETE RECORD ERROR: $e');
+    }
+  }
+
+  // AUDIT LOGS
+  Future<void> addAuditLog(AuditLog log) async {
+    try {
+      await _db.collection('audit_logs').add(log.toMap());
+    } catch (e) {
+      debugPrint('!!! ADD AUDIT LOG ERROR: $e');
+    }
+  }
+
+  Future<List<AuditLog>> getAuditLogs() async {
+    try {
+      final snap = await _db.collection('audit_logs').orderBy('timestamp', descending: true).limit(100).get();
+      return snap.docs.map((doc) => AuditLog.fromMap(doc.data(), docId: doc.id)).toList();
+    } catch (e) {
+      debugPrint('!!! GET AUDIT LOGS ERROR: $e');
+      return [];
+    }
+  }
+
+  // PROFILE MANAGEMENT
+  Future<bool> updateUserProfile(String phone, {String? name, String? photoUrl}) async {
+    try {
+      final Map<String, dynamic> updateData = {};
+      if (name != null) updateData['name'] = name;
+      if (photoUrl != null) updateData['photoUrl'] = photoUrl;
+
+      if (updateData.isEmpty) return true;
+
+      // Update in users collection
+      final userSnap = await _db.collection('users').where('phone', isEqualTo: phone).limit(1).get();
+      if (userSnap.docs.isNotEmpty) {
+        await _db.collection('users').doc(userSnap.docs.first.id).update(updateData);
+      }
+
+      // Update in players collection
+      final playerSnap = await _db.collection('players').where('phone', isEqualTo: phone).limit(1).get();
+      if (playerSnap.docs.isNotEmpty) {
+        await _db.collection('players').doc(playerSnap.docs.first.id).update(updateData);
+      }
+      
+      return true;
+    } catch (e) {
+      debugPrint('!!! UPDATE PROFILE ERROR: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updatePassword(String phone, String newPassword) async {
+    try {
+      // Update in users
+      final userSnap = await _db.collection('users').where('phone', isEqualTo: phone).limit(1).get();
+      if (userSnap.docs.isNotEmpty) {
+        await _db.collection('users').doc(userSnap.docs.first.id).update({'password': newPassword});
+      }
+
+      // Update in players
+      final playerSnap = await _db.collection('players').where('phone', isEqualTo: phone).limit(1).get();
+      if (playerSnap.docs.isNotEmpty) {
+        await _db.collection('players').doc(playerSnap.docs.first.id).update({'password': newPassword});
+      }
+      
+      return true;
+    } catch (e) {
+      debugPrint('!!! UPDATE PASSWORD ERROR: $e');
+      return false;
     }
   }
 }

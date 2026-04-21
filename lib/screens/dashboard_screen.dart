@@ -20,7 +20,10 @@ import 'fine_screen.dart';
 import 'fund_screen.dart';
 import 'report_center_screen.dart';
 import 'player_status_screen.dart';
+import 'audit_log_screen.dart';
+import 'profile_screen.dart';
 import '../services/cloud_sync_service.dart';
+import '../utils/status_dialog.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -44,6 +47,9 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
       Provider.of<InventoryProvider>(context, listen: false).fetchInventory();
       Provider.of<FineProvider>(context, listen: false).fetchPayments();
       Provider.of<ContributionProvider>(context, listen: false).fetchContributions();
+      
+      // Auto-check for cloud backup
+      _checkAutoSync();
     });
   }
 
@@ -118,36 +124,76 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
       final String message = result['message'] ?? 'Unknown Error';
 
       if (mounted) {
-        if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message), backgroundColor: Colors.green)
-          );
-        } else {
-          // Show a full dialog for errors so the user can read the exact message
-          showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              backgroundColor: const Color(0xFF020C3B),
-              title: Text("SYNC ERROR", style: GoogleFonts.bebasNeue(color: Colors.redAccent)),
-              content: Text(message, style: const TextStyle(color: Colors.white70, fontSize: 13)),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text("CLOSE", style: TextStyle(color: Colors.orange)),
-                )
-              ],
-            ),
-          );
-        }
+        StatusDialog.show(
+          context, 
+          isSuccess: success, 
+          title: success ? "CLOUD SYNCED" : "SYNC FAILED", 
+          message: success ? "All club data has been successfully uploaded to Google Sheets." : message,
+          gifAsset: success ? 'assets/added.gif' : null,
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red)
+        StatusDialog.show(
+          context, 
+          isSuccess: false, 
+          title: "CONNECTION ERROR", 
+          message: "Could not reach the cloud. Please check your internet. Details: $e"
         );
       }
     } finally {
       if (mounted) setState(() => _isSyncing = false);
+    }
+  }
+
+  Future<void> _checkAutoSync() async {
+    final isAdmin = Provider.of<AuthProvider>(context, listen: false).isAdmin;
+    if (!isAdmin) return;
+
+    final lastSync = await CloudSyncService.getLastSyncTime();
+    final now = DateTime.now();
+
+    // If never synced or last sync was > 24 hours ago
+    if (lastSync == null || now.difference(lastSync).inHours >= 24) {
+      if (!mounted) return;
+      
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF020C3B),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25), side: BorderSide(color: Colors.orange.withOpacity(0.3))),
+          title: Row(
+            children: [
+              const Icon(Icons.cloud_upload_outlined, color: Colors.orange),
+              const SizedBox(width: 10),
+              Text('BACKUP REMINDER', style: GoogleFonts.bebasNeue(color: Colors.white, fontSize: 22)),
+            ],
+          ),
+          content: Text(
+            lastSync == null 
+              ? 'Your data hasn\'t been backed up to Google Sheets yet. Would you like to sync now?'
+              : 'It\'s been over 24 hours since your last Google Sheets backup. Keep your data safe!',
+            style: GoogleFonts.poppins(color: Colors.white70, fontSize: 13),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('LATER', style: GoogleFonts.bebasNeue(color: Colors.white24, letterSpacing: 1)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () {
+                Navigator.pop(ctx);
+                _syncData();
+              },
+              child: Text('SYNC NOW', style: GoogleFonts.bebasNeue(color: Colors.white, letterSpacing: 1)),
+            ),
+          ],
+        ),
+      );
     }
   }
 
@@ -381,18 +427,21 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
         ),
         Row(
           children: [
-            Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [BoxShadow(color: Colors.orange.withOpacity(0.3), blurRadius: 15, spreadRadius: 2)],
-              ),
-              child: CircleAvatar(
-                radius: 28,
-                backgroundColor: Colors.white.withOpacity(0.1),
-                backgroundImage: photoBytes != null ? MemoryImage(photoBytes) : null,
-                child: photoBytes == null
-                    ? Text(user?.name[0].toUpperCase() ?? '?', style: GoogleFonts.bebasNeue(color: Colors.orange, fontSize: 24))
-                    : null,
+            GestureDetector(
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(color: Colors.orange.withOpacity(0.3), blurRadius: 15, spreadRadius: 2)],
+                ),
+                child: CircleAvatar(
+                  radius: 28,
+                  backgroundColor: Colors.white.withOpacity(0.1),
+                  backgroundImage: photoBytes != null ? MemoryImage(photoBytes) : null,
+                  child: photoBytes == null
+                      ? Text(user?.name[0].toUpperCase() ?? '?', style: GoogleFonts.bebasNeue(color: Colors.orange, fontSize: 24))
+                      : null,
+                ),
               ),
             ),
             const SizedBox(width: 10),
@@ -502,6 +551,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
 
     if (isAdmin) {
       cards.add(_buildSyncCard());
+      cards.add(_buildActionCard(context, 'AUDIT TRAIL', 'Activity Log', Icons.history_toggle_off_rounded, Colors.cyanAccent, const AuditLogScreen()));
       cards.add(_buildActionCard(context, 'ADMIN PANEL', 'Management', Icons.admin_panel_settings_outlined, const Color(0xFF78909C), const ManagePlayersScreen()));
     }
 

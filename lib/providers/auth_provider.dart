@@ -122,4 +122,24 @@ class AuthProvider with ChangeNotifier {
     await prefs.remove('password');
     notifyListeners();
   }
+
+  Future<bool> updateProfile({String? name, String? photoUrl}) async {
+    if (_currentUser == null) return false;
+    final success = await DatabaseService().updateUserProfile(_currentUser!.phone, name: name, photoUrl: photoUrl);
+    if (success) {
+      await refreshUser();
+    }
+    return success;
+  }
+
+  Future<bool> updatePassword(String newPassword) async {
+    if (_currentUser == null) return false;
+    final success = await DatabaseService().updatePassword(_currentUser!.phone, newPassword);
+    if (success) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('password', newPassword);
+      await refreshUser();
+    }
+    return success;
+  }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/fund.dart';
+import '../models/audit_log.dart';
 import '../services/database_service.dart';
 
 class FundProvider with ChangeNotifier {
@@ -28,13 +29,19 @@ class FundProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> addFund(Fund fund) async {
+  Future<bool> addFund(Fund fund, String adminName) async {
     _isLoading = true;
     notifyListeners();
     bool success = false;
     try {
       success = await DatabaseService().addFund(fund);
       if (success) {
+        await DatabaseService().addAuditLog(AuditLog(
+          adminName: adminName,
+          action: 'ADD_FUND',
+          details: 'Added ${fund.type}: ${fund.amount.toInt()} for ${fund.name}',
+          timestamp: DateTime.now(),
+        ));
         await fetchFunds();
       }
     } catch (e) {

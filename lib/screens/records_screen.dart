@@ -29,10 +29,13 @@ class _RecordsScreenState extends State<RecordsScreen> with SingleTickerProvider
 
   void _generateMonthList() {
     _monthList = ['Overall'];
+    DateTime start = DateTime(2026, 4, 1);
     DateTime now = DateTime.now();
-    for (int i = 0; i < 11; i++) {
-      DateTime date = DateTime(now.year, now.month - i, 1);
-      _monthList.add(DateFormat('MM-yyyy').format(date));
+    
+    DateTime current = DateTime(now.year, now.month, 1);
+    while (current.isAfter(start) || current.isAtSameMomentAs(start)) {
+      _monthList.add(DateFormat('MM-yyyy').format(current));
+      current = DateTime(current.year, current.month - 1, 1);
     }
   }
 
@@ -80,7 +83,7 @@ class _RecordsScreenState extends State<RecordsScreen> with SingleTickerProvider
   Widget _buildMonthTable(String monthYear, List<BallRecord> allRecords) {
     final isAdmin = Provider.of<AuthProvider>(context, listen: false).isAdmin;
     final filteredRecords = monthYear == 'Overall' 
-        ? allRecords 
+        ? allRecords.where((r) => r.date.isAfter(DateTime(2026, 3, 31))).toList()
         : allRecords.where((r) => r.monthYear == monthYear).toList();
 
     if (filteredRecords.isEmpty) {
@@ -118,7 +121,7 @@ class _RecordsScreenState extends State<RecordsScreen> with SingleTickerProvider
         DateTime date = DateTime.parse(dateKey);
         List<BallRecord> records = groupedByDate[dateKey]!;
 
-        // NET CALCULATION: Group by player and sum lostCount (allowing negatives to offset)
+        // NET CALCULATION: Group by player and sum lostCount
         Map<String, int> summarized = {};
         Map<String, List<BallRecord>> originalRecords = {}; 
         for (var r in records) {
@@ -130,7 +133,10 @@ class _RecordsScreenState extends State<RecordsScreen> with SingleTickerProvider
         // FILTER: Only show players who have a Net Loss > 0
         var playerNames = summarized.keys.where((name) => summarized[name]! > 0).toList()..sort();
         
-        if (playerNames.isEmpty) return const SizedBox.shrink(); // Hide the date group if no net losses
+        if (playerNames.isEmpty) return const SizedBox.shrink();
+
+        // Calculate Daily Grand Total
+        int dailyGrandTotal = playerNames.fold(0, (sum, name) => sum + summarized[name]!);
 
         return Container(
           margin: const EdgeInsets.only(bottom: 25),
@@ -157,45 +163,64 @@ class _RecordsScreenState extends State<RecordsScreen> with SingleTickerProvider
               // List of records
               Expanded(
                 child: Column(
-                  children: playerNames.map((name) {
-                    final totalLost = summarized[name];
-                    final originals = originalRecords[name]!;
+                  children: [
+                    ...playerNames.map((name) {
+                      final totalLost = summarized[name];
+                      final originals = originalRecords[name]!;
 
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: Colors.white10),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(name[0].toUpperCase() + name.substring(1).toLowerCase(), style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                                  if (originals.length > 1)
+                                    Text('${originals.length} entries summarized', style: const TextStyle(color: Colors.white24, fontSize: 9)),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                              child: Text('$totalLost', style: GoogleFonts.bebasNeue(color: Colors.redAccent, fontSize: 18)),
+                            ),
+                            if (isAdmin) ...[
+                              const SizedBox(width: 10),
+                              _buildActionIcon(Icons.edit_outlined, Colors.blueAccent, () => _showEditRecordDialog(context, originals.first)),
+                              const SizedBox(width: 5),
+                              _buildActionIcon(Icons.delete_outline, Colors.redAccent, () => _showDeleteRecordDialog(context, originals.first)),
+                            ],
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    // GRAND TOTAL ROW
+                    Container(
+                      margin: const EdgeInsets.only(top: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: Colors.white10),
+                        color: Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.orange.withOpacity(0.2)),
                       ),
                       child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(name[0].toUpperCase() + name.substring(1).toLowerCase(), style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                                if (originals.length > 1)
-                                  Text('${originals.length} entries summarized', style: const TextStyle(color: Colors.white24, fontSize: 9)),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                            child: Text('$totalLost', style: GoogleFonts.bebasNeue(color: Colors.redAccent, fontSize: 18)),
-                          ),
-                          if (isAdmin) ...[
-                            const SizedBox(width: 10),
-                            _buildActionIcon(Icons.edit_outlined, Colors.blueAccent, () => _showEditRecordDialog(context, originals.first)),
-                            const SizedBox(width: 5),
-                            _buildActionIcon(Icons.delete_outline, Colors.redAccent, () => _showDeleteRecordDialog(context, originals.first)),
-                          ],
+                          Text('DAILY GRAND TOTAL', style: GoogleFonts.bebasNeue(color: Colors.orange, fontSize: 14, letterSpacing: 1)),
+                          Text('$dailyGrandTotal', style: GoogleFonts.bebasNeue(color: Colors.white, fontSize: 20)),
                         ],
                       ),
-                    );
-                  }).toList(),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -281,7 +306,8 @@ class _RecordsScreenState extends State<RecordsScreen> with SingleTickerProvider
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
           TextButton(
             onPressed: () {
-              Provider.of<BallProvider>(context, listen: false).deleteRecord(record.id!, record.playerId, record.lostCount);
+              final adminName = Provider.of<AuthProvider>(context, listen: false).currentUser?.name ?? 'Admin';
+              Provider.of<BallProvider>(context, listen: false).deleteRecord(record.id!, record.playerId, record.lostCount, adminName);
               Navigator.pop(ctx);
             },
             child: const Text('DELETE', style: TextStyle(color: Colors.redAccent)),

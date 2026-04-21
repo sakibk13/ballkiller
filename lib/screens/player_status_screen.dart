@@ -243,7 +243,8 @@ class _PlayerStatusScreenState extends State<PlayerStatusScreen> {
             onPressed: () async {
               final newValue = int.tryParse(controller.text);
               if (newValue != null) {
-                final success = await Provider.of<BallProvider>(context, listen: false).overridePlayerTotalLost(player['id'], newValue);
+                final adminName = Provider.of<AuthProvider>(context, listen: false).currentUser?.name ?? 'Admin';
+                final success = await Provider.of<BallProvider>(context, listen: false).overridePlayerTotalLost(player['id'], newValue, adminName);
                 if (success && mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Updated successfully')));

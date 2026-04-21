@@ -482,7 +482,8 @@ class _FundScreenState extends State<FundScreen> {
                     note: noteController.text,
                     type: entryType,
                   );
-                  final success = await Provider.of<FundProvider>(context, listen: false).addFund(fund);
+                  final adminName = Provider.of<AuthProvider>(context, listen: false).currentUser?.name ?? 'Admin';
+                  final success = await Provider.of<FundProvider>(context, listen: false).addFund(fund, adminName);
                   if (success) {
                     Navigator.pop(context);
                   }

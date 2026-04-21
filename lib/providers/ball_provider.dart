@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:math';
 import '../models/player.dart';
+import '../models/audit_log.dart';
 import '../models/ball_record.dart';
 import '../services/database_service.dart';
 
@@ -152,7 +153,6 @@ class BallProvider with ChangeNotifier {
       
       if (insertedPlayer != null) {
         success = true;
-        // initialLoss is now ignored or guaranteed to be 0 by the UI
       }
       
       await fetchPlayers();
@@ -166,13 +166,22 @@ class BallProvider with ChangeNotifier {
     return success;
   }
 
-  Future<bool> overridePlayerTotalLost(String playerId, int newTotal) async {
+  Future<bool> overridePlayerTotalLost(String playerId, int newTotal, String adminName) async {
     _isLoading = true;
     notifyListeners();
     bool success = false;
     try {
+      final player = _players.firstWhere((p) => p.id == playerId);
+      final oldTotal = player.totalLost;
+      
       success = await DatabaseService().updatePlayerTotalLost(playerId, newTotal);
       if (success) {
+        await DatabaseService().addAuditLog(AuditLog(
+          adminName: adminName,
+          action: 'EDIT_LOSS',
+          details: 'Changed ${player.name} loss from $oldTotal to $newTotal',
+          timestamp: DateTime.now(),
+        ));
         await fetchPlayers();
       }
     } catch (e) {
@@ -362,13 +371,24 @@ class BallProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> deleteRecord(String recordId, String playerId, int lostCount) async {
+  Future<void> deleteRecord(String recordId, String playerId, int lostCount, String adminName) async {
     _isLoading = true;
     notifyListeners();
-    await DatabaseService().deleteRecord(recordId, playerId, lostCount);
-    await fetchPlayers();
-    await fetchTodayRecords();
-    await fetchAllRecords();
+    try {
+      final player = _players.firstWhere((p) => p.id == playerId);
+      await DatabaseService().deleteRecord(recordId, playerId, lostCount);
+      await DatabaseService().addAuditLog(AuditLog(
+        adminName: adminName,
+        action: 'DELETE_RECORD',
+        details: 'Deleted record of $lostCount balls for ${player.name}',
+        timestamp: DateTime.now(),
+      ));
+      await fetchPlayers();
+      await fetchTodayRecords();
+      await fetchAllRecords();
+    } catch (e) {
+      debugPrint('Delete Record Error: $e');
+    }
     _isLoading = false;
     notifyListeners();
   }

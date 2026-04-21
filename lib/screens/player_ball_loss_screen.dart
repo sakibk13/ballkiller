@@ -595,7 +595,8 @@ class _PlayerBallLossScreenState extends State<PlayerBallLossScreen> with Single
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              await provider.deleteRecord(record.id!, record.playerId, record.lostCount);
+              final adminName = Provider.of<AuthProvider>(context, listen: false).currentUser?.name ?? 'Admin';
+              await provider.deleteRecord(record.id!, record.playerId, record.lostCount, adminName);
             },
             child: const Text('DELETE', style: TextStyle(color: Colors.redAccent)),
           ),

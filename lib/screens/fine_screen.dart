@@ -11,6 +11,7 @@ import '../models/fine_payment.dart';
 import '../models/contribution.dart';
 import '../utils/export_service.dart';
 import '../utils/status_dialog.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class FineScreen extends StatefulWidget {
   const FineScreen({super.key});
@@ -212,99 +213,110 @@ class _FineScreenState extends State<FineScreen> {
   Widget _buildFineCard(Map<String, dynamic> player, int lost, double fine, double given, double due, double credit) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(25),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFFB71C1C), Color(0xFFD32F2F), Color(0xFFC62828)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(35),
+        borderRadius: BorderRadius.circular(30),
         boxShadow: [
-          BoxShadow(color: Colors.red.withOpacity(0.4), blurRadius: 25, spreadRadius: 5)
+          BoxShadow(color: Colors.red.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))
         ],
       ),
       child: Column(
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), shape: BoxShape.circle),
-                child: const Icon(Icons.account_balance_outlined, color: Colors.white, size: 30),
+              Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white30, width: 1.5)),
+                    child: CircleAvatar(
+                      radius: 30,
+                      backgroundColor: Colors.white10,
+                      backgroundImage: player['photoUrl'] != null && player['photoUrl'].isNotEmpty 
+                          ? MemoryImage(base64Decode(player['photoUrl'])) 
+                          : null,
+                      child: player['photoUrl'] == null || player['photoUrl'].isEmpty 
+                          ? Text(player['name'][0], style: const TextStyle(color: Colors.white, fontSize: 24)) 
+                          : null,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(color: Colors.amber, shape: BoxShape.circle),
+                    child: const Icon(Icons.star, color: Colors.white, size: 10),
+                  ),
+                ],
               ),
               const SizedBox(width: 15),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('CLUB ACCOUNT STATUS', style: GoogleFonts.bebasNeue(color: Colors.white70, fontSize: 16, letterSpacing: 1.5)),
-                    Text(player['name'][0].toUpperCase() + player['name'].substring(1).toLowerCase(), style: GoogleFonts.bebasNeue(color: Colors.white, fontSize: 24, letterSpacing: 1.5)),
+                    Text('TOP PLAYER STATUS', style: GoogleFonts.bebasNeue(color: Colors.white70, fontSize: 12, letterSpacing: 1.2)),
+                    Text(player['name'][0].toUpperCase() + player['name'].substring(1).toLowerCase(), 
+                      style: GoogleFonts.bebasNeue(color: Colors.white, fontSize: 20, letterSpacing: 1)),
                   ],
                 ),
               ),
+              Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => _sendWhatsAppReminder(player),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      margin: const EdgeInsets.only(right: 8),
+                      decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.1), shape: BoxShape.circle),
+                      child: const Icon(Icons.send_to_mobile, color: Colors.greenAccent, size: 20),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(12)),
+                    child: Column(
+                      children: [
+                        Text('DUE', style: GoogleFonts.bebasNeue(color: Colors.white38, fontSize: 10)),
+                        Text('${due.toInt()} ৳', style: GoogleFonts.bebasNeue(color: due > 0 ? Colors.orangeAccent : Colors.greenAccent, fontSize: 18)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
-          const SizedBox(height: 25),
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white30, width: 2)),
-            child: CircleAvatar(
-              radius: 45,
-              backgroundColor: Colors.white24,
-              backgroundImage: player['photoUrl'] != null && player['photoUrl'].isNotEmpty 
-                  ? MemoryImage(base64Decode(player['photoUrl'])) 
-                  : null,
-              child: player['photoUrl'] == null || player['photoUrl'].isEmpty 
-                  ? Text(player['name'][0], style: const TextStyle(color: Colors.white, fontSize: 35)) 
-                  : null,
-            ),
-          ),
-          const SizedBox(height: 25),
-          
+          const SizedBox(height: 15),
           Row(
             children: [
-              Expanded(child: _buildSquareDetail('BALLS LOST', '$lost', Colors.white.withOpacity(0.15))),
-              const SizedBox(width: 10),
-              Expanded(child: _buildSquareDetail('TOTAL FINE', '${fine.toInt()}', Colors.yellowAccent.withOpacity(0.2), textCol: Colors.yellowAccent)),
+              _buildMiniBox('BALLS LOST', '$lost', Colors.white12),
+              const SizedBox(width: 8),
+              _buildMiniBox('TOTAL FINE', '${fine.toInt()}', Colors.white12),
+              const SizedBox(width: 8),
+              _buildMiniBox('GIVEN', '${given.toInt()}', Colors.white12),
+              const SizedBox(width: 8),
+              _buildMiniBox('CREDIT', '${credit.toInt()}', Colors.white12, textCol: Colors.greenAccent),
             ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(child: _buildSquareDetail('TOTAL GIVEN', '${given.toInt()}', Colors.blueAccent.withOpacity(0.2), textCol: Colors.blueAccent)),
-              const SizedBox(width: 10),
-              Expanded(child: _buildSquareDetail('CLUB CREDIT', '${credit.toInt()}', Colors.greenAccent.withOpacity(0.2), textCol: Colors.greenAccent)),
-            ],
-          ),
-          const SizedBox(height: 10),
-          _buildSquareDetail('DUE BALANCE', '${due.toInt()}', due > 0 ? Colors.black.withOpacity(0.3) : Colors.greenAccent.withOpacity(0.2), textCol: due > 0 ? Colors.orangeAccent : Colors.greenAccent, fullWidth: true),
-
-          const SizedBox(height: 20),
-          Text(
-            '* Club Credit represents your available balance that automatically covers any fines.',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(color: Colors.white60, fontSize: 10, fontStyle: FontStyle.italic),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSquareDetail(String label, String val, Color bg, {Color textCol = Colors.white, bool fullWidth = false}) {
-    return Container(
-      width: fullWidth ? double.infinity : null,
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: Column(
-        children: [
-          Text(label, style: GoogleFonts.bebasNeue(color: Colors.white70, fontSize: 10, letterSpacing: 1)),
-          Text(val, style: GoogleFonts.bebasNeue(color: textCol, fontSize: 20)),
-        ],
+  Widget _buildMiniBox(String label, String val, Color bg, {Color textCol = Colors.white}) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
+        child: Column(
+          children: [
+            Text(label, style: GoogleFonts.bebasNeue(color: Colors.white38, fontSize: 8)),
+            Text(val, style: GoogleFonts.bebasNeue(color: textCol, fontSize: 14)),
+          ],
+        ),
       ),
     );
   }
@@ -360,9 +372,28 @@ class _FineScreenState extends State<FineScreen> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text('$total BALLS', style: GoogleFonts.bebasNeue(color: i == 0 ? Colors.redAccent : Colors.white70, fontSize: 15)),
-                      if (credit > 0)
-                        Text('CREDIT: ${credit.toInt()}', style: GoogleFonts.bebasNeue(color: Colors.greenAccent, fontSize: 13)),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text('$total BALLS', style: GoogleFonts.bebasNeue(color: i == 0 ? Colors.redAccent : Colors.white70, fontSize: 15)),
+                              if (credit > 0)
+                                Text('CREDIT: ${credit.toInt()}', style: GoogleFonts.bebasNeue(color: Colors.greenAccent, fontSize: 13)),
+                            ],
+                          ),
+                          const SizedBox(width: 10),
+                          GestureDetector(
+                            onTap: () => _sendWhatsAppReminder(p),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(color: Colors.green.withOpacity(0.15), shape: BoxShape.circle),
+                              child: const Icon(Icons.send_to_mobile, color: Colors.greenAccent, size: 18),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ],
@@ -507,6 +538,65 @@ class _FineScreenState extends State<FineScreen> {
           ),
         );
       },
+    );
+  }
+
+  void _sendWhatsAppReminder(Map<String, dynamic> player) {
+    final String name = player['name'];
+    final double due = player['due'];
+    final double credit = player['surplus'];
+    String phone = player['phone'] ?? '';
+    
+    // Clean all symbols and spaces
+    phone = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    
+    // Format for Bangladesh (Add 88 if missing)
+    if (phone.length == 11 && phone.startsWith('0')) {
+      phone = '88$phone';
+    } else if (phone.length == 10 && !phone.startsWith('0')) {
+      phone = '880$phone';
+    } else if (phone.length == 13 && phone.startsWith('880')) {
+      // Already correct (8801...)
+    }
+
+    String message = '';
+    if (due > 0) {
+      message = "Hey ${name[0].toUpperCase() + name.substring(1).toLowerCase()}, you have a club due of ${due.toInt()} BDT. Please clear it at your earliest convenience. - Ball Killer Club";
+    } else if (credit > 0) {
+      message = "Hey ${name[0].toUpperCase() + name.substring(1).toLowerCase()}, you have ${credit.toInt()} BDT credit in the club fund. Thanks for your support! - Ball Killer Club";
+    } else {
+      message = "Hey ${name[0].toUpperCase() + name.substring(1).toLowerCase()}, your club account is all clear! Keep it up. - Ball Killer Club";
+    }
+
+    // SHOW PREVIEW DIALOG FIRST
+    showDialog(
+     context: context,
+     builder: (ctx) => AlertDialog(
+       backgroundColor: const Color(0xFF020C3B),
+       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: Colors.greenAccent.withOpacity(0.2))),
+       title: Row(
+         children: [
+           const Icon(Icons.send_to_mobile, color: Colors.greenAccent),
+           const SizedBox(width: 10),
+           Text('MESSAGE PREVIEW', style: GoogleFonts.bebasNeue(color: Colors.white, fontSize: 20)),
+         ],
+       ),        content: Text(message, style: GoogleFonts.poppins(color: Colors.white70, fontSize: 13)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('CANCEL', style: GoogleFonts.bebasNeue(color: Colors.white24)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            onPressed: () {
+              Navigator.pop(ctx);
+              final url = "https://wa.me/${phone.replaceAll('+', '')}?text=${Uri.encodeComponent(message)}";
+              launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+            },
+            child: Text('SEND NOW', style: GoogleFonts.bebasNeue(color: Colors.white)),
+          ),
+        ],
+      ),
     );
   }
 

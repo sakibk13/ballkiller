@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/contribution.dart';
 import '../models/fine_payment.dart';
 import '../models/fund.dart';
@@ -8,7 +9,20 @@ import '../models/inventory.dart';
 
 class CloudSyncService {
   // Base URL
-  static const String _url = 'https://script.google.com/macros/s/AKfycbz4IZlDJVMv61c5KQms5us8Ukwgb4u7NFoi35IiiSWqNUEJP0_fQllySYo1mfxRfN8S/exec';
+  static const String _url = 'https://script.google.com/macros/s/AKfycbw9uq6mchwwDMZCzoAZ_QYuhTSKj6XMwau0jKufqutSJayeGLSj5JF-6gXmespjL4mk/exec';
+  static const String _lastSyncKey = 'last_google_sync_time';
+
+  static Future<DateTime?> getLastSyncTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? timeStr = prefs.getString(_lastSyncKey);
+    if (timeStr == null) return null;
+    return DateTime.tryParse(timeStr);
+  }
+
+  static Future<void> updateLastSyncTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_lastSyncKey, DateTime.now().toIso8601String());
+  }
 
   static Future<Map<String, dynamic>> syncAllData({
     required List<Map<String, dynamic>> leaderboard,
@@ -81,9 +95,10 @@ class CloudSyncService {
           'Accept': 'application/json',
         },
         body: jsonEncode(data),
-      );
+      ).timeout(const Duration(seconds: 30));
 
       if (response.body.contains("Sync Successful") || response.statusCode == 200 || response.statusCode == 302) {
+        await updateLastSyncTime(); // Store the success time
         return {'success': true, 'message': 'Sync Successful'};
       } else {
         return {'success': false, 'message': response.body.isEmpty ? 'Status ${response.statusCode}' : response.body};
